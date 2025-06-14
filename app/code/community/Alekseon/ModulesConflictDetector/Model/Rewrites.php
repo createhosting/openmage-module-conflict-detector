@@ -120,16 +120,32 @@ class Alekseon_ModulesConflictDetector_Model_Rewrites extends Mage_Core_Model_Ab
                         $usedRewrite = $this->_getClassName($type, $nodeName, $classId, true);
                         
                         $color = false;
-                        
+
                         if ($newClass == $usedRewrite) {
                             $color = self::NO_CONFLICT_COLOR;
                             $conflict = self::NO_CONFLICT_TYPE;
-                        } elseif (is_subclass_of($usedRewrite, $newClass)) {
-                            $color = self::RESOLVED_CONFLICT_COLOR;
-                            $conflict = self::RESOLVED_CONFLICT_TYPE;
                         } else {
-                            $color = self::CONFLICT_COLOR;
-                            $conflict = self::CONFLICT_TYPE;
+                            // Defensive check to prevent fatal errors when parent classes don't exist
+                            try {
+                                if (class_exists($usedRewrite) && class_exists($newClass)) {
+                                    if (is_subclass_of($usedRewrite, $newClass)) {
+                                        $color = self::RESOLVED_CONFLICT_COLOR;
+                                        $conflict = self::RESOLVED_CONFLICT_TYPE;
+                                    } else {
+                                        $color = self::CONFLICT_COLOR;
+                                        $conflict = self::CONFLICT_TYPE;
+                                    }
+                                } else {
+                                    // One or both classes do not exist - treat as conflict or log
+                                    Mage::log("Class $usedRewrite or $newClass does not exist; skipping is_subclass_of check.", null, 'modules_conflict_detector.log');
+                                    $color = self::CONFLICT_COLOR;
+                                    $conflict = self::CONFLICT_TYPE;
+                                }
+                            } catch (\Throwable $e) {
+                                Mage::logException($e);
+                                $color = self::CONFLICT_COLOR;
+                                $conflict = self::CONFLICT_TYPE;
+                            }
                         }
                         
                         $modelsRewrites[$initialClass]['classes'][] = array(
